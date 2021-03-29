@@ -1,1 +1,4 @@
-# Proof checker
+#Proof checker
+Connor Cahoon, Sam Schweigel
+****
+##### Syntax:
