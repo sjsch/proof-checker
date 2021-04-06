@@ -52,6 +52,7 @@ hastype(G, X, T) :- member(hasdef(X, T, _), G).
 %%
 %%   ---------------
 %%   Γ ⊢ prop : type
+type(_, _, hole(T), T).
 type(_, _, prop, type).
 
 %% If you have an assumption, or a definition that proves something
@@ -110,16 +111,17 @@ type(C, G, app(M, N), B2) :-
 %%   --------------------
 %%        Γ ⊢ M : B
 type(yes, G, M, B) :-
-    type(no, G, M, A),
-    beta(A, B),
+    betas(G, A, B),
+    type(yes, G, M, A),
     type(yes, G, B, _).
 
 %% universe(T) is true if T is one of the universes: type, or prop.
 universe(prop).
 universe(type).
 
-%% beta(G, X, Y) is true if X can be simplified to Y in the context G.
-%% Beta reduction is both computation and proof simplification.
+%% beta(G, X, Y) is true if X can be simplified to Y in the context G
+%% in one step.  Beta reduction is both computation and proof
+%% simplification.
 beta(G, lam(X, A, B), lam(X, A2, B)) :-
     beta(G, A, A2).
 beta(G, lam(X, A, B), lam(X, A, B2)) :-
@@ -130,16 +132,21 @@ beta(G, pi(X, A, B), pi(X, A, B2)) :-
     beta(G, B, B2).
 beta(G, succ(A), succ(A2)) :-
     beta(G, A, A2).
-beta(G, app(lam(X, _, A), B), C) :-
-    subst(G, X, B, A, C).
+beta(_, app(lam(X, _, A), B), C) :-
+    subst(X, B, A, C).
 beta(G, app(A, B), app(A2, B)) :-
     beta(G, A, A2).
 beta(G, var(X), D) :-
     member(hasdef(X, _, D), G).
 
+betas(G, X, Y) :- beta(G, X, Y), not(beta(G, Y, _)).
+betas(G, X, Z) :- beta(G, X, Y), betas(G, Y, Z).
+
 %% subst(X, Y, E1, E2) is true if substituing Y for the variable
 %% var(X) in E1 results in E2.  Written E1[Y/X].
 subst(X, Y, var(X), Y).
+subst(X, _, var(Z), var(Z)) :-
+    dif(X, Z).
 subst(_, _, prop, prop).
 subst(_, _, type, type).
 subst(X, Y, app(A, B), app(A2, B2)) :-
@@ -155,3 +162,13 @@ subst(X, Y, lam(V, A, B), lam(V, A2, B2)) :-
     dif(X, V),
     subst(X, Y, A, A2),
     subst(X, Y, B, B2).
+
+%% and : pi(a, prop, pi(b, prop, prop))
+%% and = lam(a, prop, lam(b, prop, pi(c, prop, pi(habc, pi(ha, var(a), pi(hb, var(b), var(c))), var(c)))))
+%%
+%% true : prop
+%% true = pi(a, prop, pi(ha, var(a), var(a)))
+%%
+%% trivial : true
+%% trivial = lam(a, prop, lam(ha, var(a), var(ha)))
+
