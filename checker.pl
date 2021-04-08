@@ -36,6 +36,10 @@ addmap(E, G1, [E|G2]) :- delete(G1, E, G2).
 hastype(G, X, T) :- member(hastype(X, T), G).
 hastype(G, X, T) :- member(hasdef(X, T, _), G).
 
+%% universe(T) is true if T is one of the universes: type, or prop.
+universe(prop).
+universe(type).
+
 %% type(C, G, E, T) is true if E can be assigned type T in the context
 %% G (aka E is a proof of T).  C is yes/no, and indicates whether or
 %% not to allow simplification (beta reduction) in types.  This must
@@ -52,8 +56,8 @@ hastype(G, X, T) :- member(hasdef(X, T, _), G).
 %%
 %%   ---------------
 %%   Γ ⊢ prop : type
-type(_, _, hole(T), T).
-type(_, _, prop, type).
+type(_, hole(T), T).
+type(_, prop, type).
 
 %% If you have an assumption, or a definition that proves something
 %% sitting in a variable somewhere, you can use it to prove the thing
@@ -62,7 +66,7 @@ type(_, _, prop, type).
 %%   hastype(Γ, x, A)
 %%   ----------------
 %%      Γ ⊢ x : A
-type(_, G, var(X), A) :- hastype(G, X, A).
+type(G, var(X), A) :- hastype(G, X, A).
 
 %% The pi type gives us universal quantification.  Π x : t1, t2 is the
 %% proposition that for any proof of t1 (which we call x), t2 holds.
@@ -73,10 +77,10 @@ type(_, G, var(X), A) :- hastype(G, X, A).
 %%   Γ ⊢ A : T  Γ, X : A ⊢ B : L
 %%   ---------------------------
 %%       Γ ⊢ Π x : A, B : L
-type(C, G, pi(X, A, B), L) :-
-    type(C, G, A, _),
+type(G, pi(X, A, B), L) :-
+    type(G, A, _),
     addmap(hastype(X, A), G, G2),
-    type(C, G2, B, L),
+    type(G2, B, L),
     universe(L).
 
 %% The lambda is how you prove a pi type: it lets you make an
@@ -86,22 +90,23 @@ type(C, G, pi(X, A, B), L) :-
 %%     Γ ⊢ A : T  Γ, x : A ⊢ N : B
 %%   -------------------------------
 %%   Γ ⊢ (λ x : A, N) : (Π x : A, B)
-type(C, G, lam(X, A, N), pi(X, A, B)) :-
-    type(C, G, A, _),
+type(G, lam(X, A, N), pi(X, A, B)) :-
+    type(G, A, _),
     addmap(hastype(X, A), G, G2),
-    type(C, G2, N, B).
+    type(G2, N, B).
 
 %% Application lets us use proofs of universal quantification.  This
 %% plays the role of both modus ponens (applying a proof of A to a
 %% proof that for any proof of A, B) as well as universal
 %% instantiation, (applying an A to a proof that for any A, B).
 %%
-%%   Γ ⊢ M : (Π x : A, B)  Γ ⊢ N : A
-%%   -------------------------------
-%%         Γ ⊢ M N : B[N / X]
-type(C, G, app(M, N), B2) :-
-    type(C, G, M, pi(X, A, B)),
-    type(C, G, N, A),
+%%   Γ ⊢ M : T  Γ ⊢ T ≈ (Π x : A, B)  Γ ⊢ N : A
+%%   -------------------------------------------
+%%               Γ ⊢ M N : B[N / X]
+type(G, app(M, N), B2) :-
+    type(G, M, T),
+    betas(G, T, pi(X, A, B)),
+    type(G, N, A),
     subst(X, N, B, B2).
 
 %% This rules lets us do simplifications: if your proof proves A, and
@@ -110,14 +115,10 @@ type(C, G, app(M, N), B2) :-
 %%   Γ ⊢ M : A  Γ ⊢ A ≈ B
 %%   --------------------
 %%        Γ ⊢ M : B
-type(yes, G, M, B) :-
-    betas(G, A, B),
-    type(yes, G, M, A),
-    type(yes, G, B, _).
-
-%% universe(T) is true if T is one of the universes: type, or prop.
-universe(prop).
-universe(type).
+%% type(G, M, B) :-
+%%     type(G, M, A),
+%%     betas(G, A, B),
+%%     type(G, B, _).
 
 %% beta(G, X, Y) is true if X can be simplified to Y in the context G
 %% in one step.  Beta reduction is both computation and proof
@@ -136,10 +137,11 @@ beta(_, app(lam(X, _, A), B), C) :-
     subst(X, B, A, C).
 beta(G, app(A, B), app(A2, B)) :-
     beta(G, A, A2).
-beta(G, var(X), D) :-
-    member(hasdef(X, _, D), G).
+%% beta(G, var(X), D) :-
+    %% member(hasdef(X, _, D), G).
 
-betas(G, X, Y) :- beta(G, X, Y), not(beta(G, Y, _)).
+%% betas(G, X, X) :- not(beta(G, X, _)).
+betas(_, X, X).
 betas(G, X, Z) :- beta(G, X, Y), betas(G, Y, Z).
 
 %% subst(X, Y, E1, E2) is true if substituing Y for the variable
