@@ -16,6 +16,40 @@
 %% t ::= x
 %%     | func(f, [t...])
 
+
+%% Example proof of the commutativity of addition:
+%% 
+%% peano(DS), % Add the peano axioms
+%% proves(DS, [],
+%%
+%%   % We proceed by induction on n.
+%%   induction(
+%%     % The base case is covered by specializing the axiom "forall all n, n + 0 = 0" to zero.
+%%     specialize(add_zero, zero),
+%%     % We do conditional proof for the inductive step, since we get the induction hypothesis as an assumption.
+%%     cond(
+%%       induction_hyp,
+%%       % We can rewrite the goal using an equality.
+%%       subst(
+%%         % Rewrite the goal using 0 + succ(n) = succ(0  + n)
+%%         specialize(specialize(add_succ, zero), n),
+%%         subst(
+%%           % Rewrite the goal with the IH, 0 + n = n
+%%           induction_hyp),
+%%           % Trivially, n = n
+%%           refl(func(succ, [n]))
+%%         )
+%%       )
+%%     )
+%%   ),
+%%   % We're trying to prove that for any n, 0 + n = n.  (The peano axioms define n + 0 = n, but not the other way.)
+%%   forall(n, equal(func(add, [zero, n]), n))
+%% ).
+
+%% proves(D, A, Proof, P) is true when given the existing named
+%% theorems D, the assumptions A (separated for user experience), the
+%% proof Proof is a valid proof of the proposition P.
+
 %% Introduction rules
 
 proves(_, _, trivial, true).
@@ -30,8 +64,8 @@ proves(D, A,  left(Proof), or(P, _)) :-
 proves(D, A, right(Proof), or(_, Q)) :-
     proves(D, A, Proof, Q).
 
-proves(D, A, cond(ProofQ), imp(P, Q)) :-
-    proves(D, [P | A], ProofQ, Q).
+proves(D, A, cond(X, ProofQ), imp(P, Q)) :-
+    proves(D, [X:P | A], ProofQ, Q).
 
 proves(D, A, generalize(Proof), forall(X, P)) :-
     proves(D, A, Proof, P),
@@ -58,9 +92,6 @@ proves(D, A, case(ProofOr, ProofA, ProofB), C) :-
 proves(D, A, mp(ProofImp, ProofP), Q) :-
     proves(D, A, ProofImp, imp(P, Q)),
     proves(D, A, ProofP, P).
-
-proves(_, A, assume(P), P) :-
-    member(P, A).
 
 proves(D, A, contra(ProofP, ProofNP), _) :-
     proves(D, A, ProofP, P),
@@ -93,10 +124,16 @@ proves(D, A, subst(ProofEq, Proof), P) :-
 
 proves(D, _, X, P) :-
     atom(X),
-    member(X-P, D).
+    member(X:P, D).
+
+proves(_, A, X, P) :-
+    atom(X),
+    member(X:P, A).
 
 proves(_, A, hole(A, G), G).
 
+%% free(X, Y) is true when X is free (appears as a variable, but is
+%% not bound by a quantifier) in Y.
 free(X, Y) :-
     atom(Y),
     dif(X, Y).
@@ -124,7 +161,8 @@ free(X, equal(T, U)) :-
     free(X, T),
     free(X, U).
 
-%% Capture-avoiding substitution.
+%% subst(X, Y, A, B) is true when X, substituted for Y in A, gives you
+%% B, properly avoiding capturing free variables in quantifiers.
 subst(X, Y, X, Y).
 subst(X, _, Z, Z) :-
     atom(Z),
@@ -156,20 +194,23 @@ subst(X, Y, rel(R, Ps), rel(R, Ps2)) :-
 subst(X, Y, func(F, Ts), func(F, Ts2)) :-
     maplist(subst(X, Y), Ts, Ts2).
 
+%% peano(DS) is true when the list of defintiions contain the peano axioms.
 peano(DS) :-
     DS = [
-        succ_inj - forall(n, forall(m, imp(equal(func(succ, [n]), func(succ, [m])), equal(n, m)))),
-        ne_zero - forall(n, not(equal(func(succ, [n]), zero))),
-        add_zero - forall(a, equal(func(add, [a, zero]), a)),
-        add_succ - forall(a, forall(b, equal(func(add, [a, func(succ, [b])]), func(succ, [func(add, [a, b])])))),
-        mul_zero - forall(a, equal(func(mul, [a, zero]), zero)),
-        mul_succ - forall(a, forall(b, equal(func(mul, [a, func(succ, [b])]), func(add, [a, func(mul, [a, b])]))))
+        succ_inj : forall(n, forall(m, imp(equal(func(succ, [n]), func(succ, [m])), equal(n, m)))),
+        ne_zero : forall(n, not(equal(func(succ, [n]), zero))),
+        add_zero : forall(a, equal(func(add, [a, zero]), a)),
+        add_succ : forall(a, forall(b, equal(func(add, [a, func(succ, [b])]), func(succ, [func(add, [a, b])])))),
+        mul_zero : forall(a, equal(func(mul, [a, zero]), zero)),
+        mul_succ : forall(a, forall(b, equal(func(mul, [a, func(succ, [b])]), func(add, [a, func(mul, [a, b])]))))
+        | _
     ].
+
+%% Parser
 
 keyword(X) :-
     Keywords = ['/\\', '\\/', '(', ')'],
     member(X, Keywords).
-
 
 prop0(or(P, Q)) --> prop1(P), ['\\/'], prop0(Q).
 prop0(X) --> prop1(X).
