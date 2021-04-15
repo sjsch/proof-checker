@@ -302,7 +302,7 @@ term2(PN) --> digit(C), digits(Cs), blanks, { number_codes(N, [C | Cs]), peano_n
 term2(X) --> symbol("("), term0(X), symbol(")").
 
 peano_num(0, zero).
-peano_num(N, succ(PN1)) :-
+peano_num(N, func(succ, [PN1])) :-
     N > 0,
     N1 is N - 1,
     peano_num(N1, PN1).
