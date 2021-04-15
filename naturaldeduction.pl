@@ -18,23 +18,23 @@
 %%     | rel(r, [P...])
 %%
 %% Terms:
-%% 
+%%
 %% t ::= x
 %%     | func(f, [t...])
 
-%% claim and_comm : P /\ Q -> Q /\ P
-%% proof and_comm {
-%%   cond (hyp_pq) {
-%%     conj {
-%%       proj_right { hyp_pq }
-%%     } {
-%%       proj_left { hyp_pq }
-%%     }
-%%   }
-%% }
+% claim and_comm : P /\ Q -> Q /\ P
+% proof and_comm {
+%   cond (hyp_pq) {
+%     conj {
+%       proj_right { hyp_pq }
+%     } {
+%       proj_left { hyp_pq }
+%     }
+%   }
+% }
 
 %% Example proof of the commutativity of addition:
-%% 
+%%
 %% peano(DS), % Add the peano axioms
 %% proves(DS, [],
 %%
@@ -58,7 +58,7 @@
 %%       )
 %%     )
 %%   ),
-%%   % We're trying to prove that for any n, 0 + n = n.  (The peano axioms define n + 0 = n, but not the other way.)
+%%   % We''re trying to prove that for any n, 0 + n = n.  (The peano axioms define n + 0 = n, but not the other way.)
 %%   forall(n, equal(func(add, [zero, n]), n))
 %% ).
 
@@ -271,15 +271,60 @@ peano(DS) :-
 
 %% Parser
 
-keyword(X) :-
-    Keywords = ['/\\', '\\/', '(', ')'],
-    member(X, Keywords).
+proof(N, P, Proof) -->
+    symbol("proof"),
+    ident(N),
+    symbol(":"),
+    prop0(P),
+    symbol("{"),
+    proofterm(Proof),
+    symbol("}").
 
-prop0(or(P, Q)) --> prop1(P), ['\\/'], prop0(Q).
-prop0(X) --> prop1(X).
+term0(func(add, [X, Y])) --> term1(X), symbol("+"), term0(Y).
+term0(X) --> term1(X).
 
-prop1(and(P, Q)) --> prop2(P), ['/\\'], prop1(Q).
-prop1(X) --> prop2(X).
+term1(func(mul, [X, Y])) --> term2(X), symbol("*"), term0(Y).
+term1(X) -->  term2(X).
 
-prop2(X) --> [X], {atom(X), not(keyword(X))}.
-prop2(X) --> ['('], prop0(X), [')'].
+term2(func(F, Ts)) --> functional(term0, F, Ts).
+term2(X) --> ident(X).
+term2(PN) --> digit(C), digits(Cs), blanks, { number_codes(N, [C | Cs]), peano_num(N, PN) }.
+term2(X) --> symbol("("), term0(X), symbol(")").
+
+peano_num(0, zero).
+peano_num(N, succ(PN1)) :-
+    N > 0,
+    N1 is N - 1,
+    peano_num(N1, PN1).
+
+prop0(imp(P, Q)) --> prop1(P), symbol("->"), prop0(Q).
+prop0(P) --> prop1(P).
+
+prop1(or(P, Q)) --> prop2(P), symbol("\\/"), prop0(Q).
+prop1(P) --> prop2(P).
+
+prop2(and(P, Q)) --> prop3(P), symbol("/\\"), prop0(Q).
+prop2(P) --> prop3(P).
+
+prop3(X) --> ident(X).
+prop3(not(X)) --> symbol("~"), prop0(X).
+prop3(X) --> symbol("("), prop0(X), symbol(")").
+prop3(forall(X, P)) --> symbol("forall"), ident(X), symbol("."), prop0(P).
+prop3(exists(X, P)) --> symbol("exists"), ident(X), symbol("."), prop0(P).
+prop3(equal(T, U)) --> term0(T), symbol("="), term0(U).
+prop3(rel(R, Ps)) --> functional(term0, R, Ps).
+
+proofterm(trivial) --> symbol("trivial").
+
+functional(P, F, As) --> ident(F), symbol("("), arglist(P, As), symbol(")").
+functional(_, F, []) --> ident(F), symbol("("), symbol(")").
+
+arglist(P, [H | T]) --> call(P, H), symbol(","), arglist(P, T).
+arglist(P, [H]) --> call(P, H).
+
+alnumident([C | T]) --> [C], { code_type(C, csym) }, alnumident(T).
+alnumident([]) --> [].
+
+ident(X) --> [C], { code_type(C, csymf) }, alnumident(T), { atom_string(X, [C | T]) }, blanks.
+
+symbol(S) --> S, blanks.
