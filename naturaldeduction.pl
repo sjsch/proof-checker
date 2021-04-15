@@ -1,6 +1,10 @@
-%% We implement a form of natural deduction for first-order logic with 
+%% We implement a form of natural deduction for first-order logic,
+%% with equality, relation and function symbols, and induction on
+%% natural numbers.  This is a simple system, yet it's powerful enough
+%% to prove interesting theorems in number theory (as well as be
+%% subject to Gödel's incompleteness theorems.)
 
-%% Propositions:
+%% Propositions (in prolog syntax):
 %%
 %% P ::= true
 %%     | false
@@ -64,87 +68,131 @@
 
 %% Introduction rules
 
-%% --------------
-%% Γ ⊢ trivial : true
+%% We can prove the goal "true" instantly and without assumptions.
+%% Notice that true has an introduction rule and no elimination rule,
+%% while false has an elimination rule but no introduction.
 proves(_, _, trivial, true).
-%% No way to prove false.
 
-%% 
+%% We can prove "P and Q" by giving a proof composed of P, as well as
+%% a proof of Q.
 proves(D, A, conj(Proof1, Proof2), and(P, Q)) :-
     proves(D, A, Proof1, P),
     proves(D, A, Proof2, Q).
 
+%% We can prove "P or Q" by picking a side and proving only that one.
 proves(D, A,  left(Proof), or(P, _)) :-
     proves(D, A, Proof, P).
 proves(D, A, right(Proof), or(_, Q)) :-
     proves(D, A, Proof, Q).
 
+%% To prove an implication like "P implies Q", we can do conditional
+%% proof.  We introduce the antecedent as an assumption and give it a
+%% name, which we can use in the proof of the consequent.
 proves(D, A, cond(X, ProofQ), imp(P, Q)) :-
     proves(D, [X:P | A], ProofQ, Q).
 
+%% If we already have a proof of "P", we can generalize it into a
+%% proof of that statement for any individual, provided that the
+%% variable we introduce does not appear in the proposition.
 proves(D, A, generalize(Proof), forall(X, P)) :-
     proves(D, A, Proof, P),
     not(free(X, P)).
 
+%% To prove an existential, we can simmple name an example individual
+%% that satisfies the proposition.
 proves(D, A, example(X, Proof), exists(Y, P)) :-
     proves(D, A, Proof, Q),
     subst(Y, X, P, Q).
 
+%% For any individual x, we can produce a proof that x = x.
 proves(_, _, refl(X), equal(X, X)).
 
 %% Elimination rules.
 
+%% Given a proof of "P and Q", we are allowed to produce a proof of P
+%% or Q.
 proves(D, A, proj_left(Proof1), P) :-
     proves(D, A, Proof1, and(P, _)).
 proves(D, A, proj_right(Proof1), Q) :-
     proves(D, A, Proof1, and(_, Q)).
 
+%% Given a proof of "P or Q", we must do case analysis by providing a
+%% proof for the situation where P is true, and one for where Q is
+%% true, that have the same conclusion.
 proves(D, A, case(ProofOr, ProofA, ProofB), C) :-
     proves(D, A, ProofOr, or(A, B)),
     proves(D, A, ProofA, imp(A, C)),
     proves(D, A, ProofB, imp(B, C)).
 
+%% If we have an implication, we are allowed to prove the conclusion
+%% if we have a proof of the antecedent.
 proves(D, A, mp(ProofImp, ProofP), Q) :-
     proves(D, A, ProofImp, imp(P, Q)),
     proves(D, A, ProofP, P).
 
+%% Given a proof of P and a proof of not P, we are allowed to prove
+%% anything we want: this is how we can eliminate absurd cases in our
+%% case analysis.
 proves(D, A, contra(ProofP, ProofNP), _) :-
     proves(D, A, ProofP, P),
     proves(D, A, ProofNP, not(P)).
-    
+
+%% If we have a proof of "P for any x", we can name a specific x and
+%% get back a proof of P where that x is filled in.
 proves(D, A, specialize(Proof, X), Q) :-
     proves(D, A, Proof, forall(Y, P)),
     subst(Y, X, P, Q).
 
+%% Given a proof that there exists some x for which P is true, we are
+%% allowed to bring in a free variable x and an assumption that P is
+%% true for it, but we might not know what the x is.
 proves(D, A, inspect(Proof), P) :-
     proves(D, A, Proof, exists(_, P)).
 
+%% We can prove a universal statement about the natural numbers by
+%% providing a proof that holds for 0, and a proof that P holding for
+%% n implies it holds for the successor of n.
 proves(D, A, induction(Proof0, ProofS), forall(N, P)) :-
     subst(N, zero, P, P0),
     subst(N, func(succ, [N]), P, PS),
     proves(D, A, Proof0, P0),
     proves(D, A, ProofS, imp(P, PS)).
 
+%% We can take a proof that a = b and flip it to get a proof that b =
+%% a.
 proves(D, A, sym(Proof), equal(Y, X)) :-
     proves(D, A, Proof, equal(X, Y)).
 
+%% We can combine proofs of a = b and b = c to get a = c.
 proves(D, A, trans(Proof1, Proof2), equal(X, Z)) :-
     proves(D, A, Proof1, equal(X, Y)),
     proves(D, A, Proof2, equal(Y, Z)).
 
+%% We can use an equality proof of x = y by substituting y for x in a
+%% proposition that we have also proved.  We do the substitution "in
+%% reverse" to support backwards reasoning with holes: you know what
+%% you want to prove, and you can find out what you have to prove
+%% after rewriting with the substitution by using this proof term.
 proves(D, A, subst(ProofEq, Proof), P) :-
     proves(D, A, ProofEq, equal(S, T)),
     subst(S, T, P, Q),
     proves(D, A, Proof, Q).
 
+%% If we have a named theorem in our context, we're allowed to
+%% reference that.
 proves(D, _, X, P) :-
     atom(X),
     member(X:P, D).
 
+%% If we have an assumption, we can also use that.
 proves(_, A, X, P) :-
     atom(X),
     member(X:P, A).
 
+%% If we haven't completed a proof, we can put a hole in the missing
+%% part.  Prolog's search will use backwards reasoning to find out
+%% what kind of proof you have to put in the hole, and what
+%% assumptions you may use, to complete the proof.
 proves(_, A, hole(A, G), G).
 
 %% free(X, Y) is true when X is free (appears as a variable, but is
