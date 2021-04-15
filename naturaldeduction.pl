@@ -272,10 +272,11 @@ peano(DS) :-
     ].
 
 %% Parser
-
+%% directives is true for a list contaning individual directives
 directives([H | T]) --> directive(H), directives(T).
 directives([]) --> [].
 
+%% a directive is either an axiom, or a proof we would like to check.
 directive(axiom(N, P)) -->
     symbol("axiom"),
     ident(N),
@@ -290,6 +291,7 @@ directive(proof(N, P, Proof, Holes)) -->
     proofterm(Holes, Proof),
     symbol("}").
 
+%% terms are used to create numerical order of operations, including parenthesis, multiplication, and addition
 term0(func(add, [X, Y])) --> term1(X), symbol("+"), term0(Y).
 term0(X) --> term1(X).
 
@@ -301,21 +303,28 @@ term2(X) --> ident(X).
 term2(PN) --> digit(C), digits(Cs), blanks, { number_codes(N, [C | Cs]), peano_num(N, PN) }.
 term2(X) --> symbol("("), term0(X), symbol(")").
 
+%% peano_num states every number is either 0 or a successor to some number
 peano_num(0, zero).
 peano_num(N, succ(PN1)) :-
     N > 0,
     N1 is N - 1,
     peano_num(N1, PN1).
 
+%% Syntactic order of precidence
+
+%% First priority, last evaluated, is implication
 prop0(imp(P, Q)) --> prop1(P), symbol("->"), prop0(Q).
 prop0(P) --> prop1(P).
 
+%% Logical or
 prop1(or(P, Q)) --> prop2(P), symbol("\\/"), prop0(Q).
 prop1(P) --> prop2(P).
 
+%% Logical and
 prop2(and(P, Q)) --> prop3(P), symbol("/\\"), prop0(Q).
 prop2(P) --> prop3(P).
 
+%% Final precidence includes not, parenthesis, forall and equality
 prop3(X) --> ident(X).
 prop3(not(X)) --> symbol("~"), prop0(X).
 prop3(X) --> symbol("("), prop0(X), symbol(")").
@@ -324,6 +333,7 @@ prop3(exists(X, P)) --> symbol("exists"), ident(X), symbol("."), prop0(P).
 prop3(equal(T, U)) --> term0(T), symbol("="), term0(U).
 prop3(rel(R, Ps)) --> functional(term0, R, Ps).
 
+%% proofterm defines the syntax used in the parser. The 21 different keywords represent every term that can be used in proof construction
 proofterm([], trivial) --> symbol("trivial").
 proofterm(HS, conj(Pr1, Pr2)) --> symbol("conj"), bracedterm(H1, Pr1), bracedterm(H2, Pr2), { append(H1, H2,HS) }.
 proofterm(HS, left(Pr)) --> symbol("left"), bracedterm(HS, Pr).
@@ -359,12 +369,13 @@ arglist(P, [H]) --> call(P, H).
 alnumident([C | T]) --> [C], { code_type(C, csym) }, alnumident(T).
 alnumident([]) --> [].
 
+%% is true if X is an identifier, meaning is is an alphanumeric string followed by blanks
 ident(X) --> [C], { code_type(C, csymf) }, alnumident(T), { atom_string(X, [C | T]) }, blanks.
 
+%% a symbol is any string followed by a space+
 symbol(S) --> S, blanks.
 
-%% Checker
-
+%% Checker that reads a proof and evaluates its validity, ignoring soundness
 checkdirectives(Hs, Hs, _, []).
 checkdirectives(Hs, Hs2, D, [axiom(N, P) | T]) :-
     checkdirectives(Hs, Hs2, [N:P | D], T).
@@ -379,6 +390,7 @@ checkdirectives(_, _, _, [proof(N, _, _, _) | _]) :-
     !,
     false.
 
+%% prints any holes in the proof to the termial
 printhole(hole(A, G)) :-
     term_string(G, GS),
     write(GS),
@@ -389,24 +401,29 @@ printhole(hole(A, G)) :-
     maplist(printassumption, A),
     write("\n").
 
+%% prints the header to the terminal
 printheader(S) :-
     string_length(S, L),
     between(2, L, _),
     write("="),
     false.
 
+%% prints the assumptions in the proof to the terminal
 printassumption(N:P) :-
     atom_string(N, NS),
     format('~s ~16|: ~w\n', [NS, P]).
 
+%% prints if the proof is complete or has holes
 printresult([]) :-
     write("All proofs correct and complete.\n"), !.
 printresult(Hs) :-
     write("Some proofs are not yet complete:\n\n"),
     maplist(printhole, Hs).
 
+%% call main when loaded, allowing termial use: swipl .\naturaldeduction.pl .\proof.txt
 :- initialization(main, main).
 
+%% loads file into parser and proof system
 main([Filename]) :-
     phrase_from_file(directives(DS), Filename), !,
     checkdirectives([], Hs, [], DS), !,
