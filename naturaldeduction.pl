@@ -375,6 +375,7 @@ checkdirectives(Hs, Hs3, D, [proof(N, P, Proof, Holes) | T]) :-
 checkdirectives(_, _, _, [proof(N, _, _, _) | _]) :-
     write("Failed on proof "),
     write(N),
+    write(".\n"),
     !,
     false.
 
@@ -406,6 +407,6 @@ printresult(Hs) :-
 :- initialization(main, main).
 
 main([Filename]) :-
-    phrase_from_file(directives(DS), Filename),
+    phrase_from_file(directives(DS), Filename), !,
     checkdirectives([], Hs, [], DS), !,
     printresult(Hs).
