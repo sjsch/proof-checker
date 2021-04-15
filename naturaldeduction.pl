@@ -411,6 +411,5 @@ printresult(Hs) :-
 
 main([Filename]) :-
     phrase_from_file(directives(DS), Filename), !,
-    print(DS),
     checkdirectives([], Hs, [], DS), !,
     printresult(Hs).
