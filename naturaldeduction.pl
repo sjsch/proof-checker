@@ -307,22 +307,24 @@ peano_num(N, succ(PN1)) :-
     N1 is N - 1,
     peano_num(N1, PN1).
 
-prop0(imp(P, Q)) --> prop1(P), symbol("->"), prop0(Q).
-prop0(P) --> prop1(P).
+prop0(forall(X, P)) --> symbol("forall"), ident(X), symbol("."), prop0(P).
+prop0(exists(X, P)) --> symbol("exists"), ident(X), symbol("."), prop0(P).
+prop0(X) --> prop1(X).
 
-prop1(or(P, Q)) --> prop2(P), symbol("\\/"), prop0(Q).
+prop1(imp(P, Q)) --> prop2(P), symbol("->"), prop0(Q).
 prop1(P) --> prop2(P).
 
-prop2(and(P, Q)) --> prop3(P), symbol("/\\"), prop0(Q).
+prop2(or(P, Q)) --> prop3(P), symbol("\\/"), prop0(Q).
 prop2(P) --> prop3(P).
 
-prop3(X) --> ident(X).
-prop3(not(X)) --> symbol("~"), prop0(X).
-prop3(X) --> symbol("("), prop0(X), symbol(")").
-prop3(forall(X, P)) --> symbol("forall"), ident(X), symbol("."), prop0(P).
-prop3(exists(X, P)) --> symbol("exists"), ident(X), symbol("."), prop0(P).
-prop3(equal(T, U)) --> term0(T), symbol("="), term0(U).
-prop3(rel(R, Ps)) --> functional(term0, R, Ps).
+prop3(and(P, Q)) --> prop4(P), symbol("/\\"), prop0(Q).
+prop3(P) --> prop4(P).
+
+prop4(X) --> ident(X).
+prop4(not(X)) --> symbol("~"), prop0(X).
+prop4(X) --> symbol("("), prop0(X), symbol(")").
+prop4(equal(T, U)) --> term0(T), symbol("="), term0(U).
+prop4(rel(R, Ps)) --> functional(term0, R, Ps).
 
 proofterm([], trivial) --> symbol("trivial").
 proofterm(HS, conj(Pr1, Pr2)) --> symbol("conj"), bracedterm(H1, Pr1), bracedterm(H2, Pr2), { append(H1, H2,HS) }.
@@ -409,5 +411,6 @@ printresult(Hs) :-
 
 main([Filename]) :-
     phrase_from_file(directives(DS), Filename), !,
+    print(DS),
     checkdirectives([], Hs, [], DS), !,
     printresult(Hs).
