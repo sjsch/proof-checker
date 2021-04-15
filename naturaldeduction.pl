@@ -1,3 +1,5 @@
+%% We implement a form of natural deduction for first-order logic with 
+
 %% Propositions:
 %%
 %% P ::= true
@@ -16,6 +18,16 @@
 %% t ::= x
 %%     | func(f, [t...])
 
+%% claim and_comm : P /\ Q -> Q /\ P
+%% proof and_comm {
+%%   cond (hyp_pq) {
+%%     conj {
+%%       proj_right { hyp_pq }
+%%     } {
+%%       proj_left { hyp_pq }
+%%     }
+%%   }
+%% }
 
 %% Example proof of the commutativity of addition:
 %% 
@@ -52,9 +64,12 @@
 
 %% Introduction rules
 
+%% --------------
+%% Γ ⊢ trivial : true
 proves(_, _, trivial, true).
 %% No way to prove false.
 
+%% 
 proves(D, A, conj(Proof1, Proof2), and(P, Q)) :-
     proves(D, A, Proof1, P),
     proves(D, A, Proof2, Q).
