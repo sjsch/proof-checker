@@ -326,29 +326,29 @@ prop3(rel(R, Ps)) --> functional(term0, R, Ps).
 
 proofterm([], trivial) --> symbol("trivial").
 proofterm(HS, conj(Pr1, Pr2)) --> symbol("conj"), bracedterm(H1, Pr1), bracedterm(H2, Pr2), { append(H1, H2,HS) }.
-proofterm(HS, left(Pr)) --> symbol("left"), proofterm(HS, Pr).
-proofterm(HS, right(Pr)) --> symbol("right"), proofterm(HS, Pr).
+proofterm(HS, left(Pr)) --> symbol("left"), bracedterm(HS, Pr).
+proofterm(HS, right(Pr)) --> symbol("right"), bracedterm(HS, Pr).
 proofterm(HS, cond(X, Pr)) --> symbol("cond"), symbol("("), ident(X), symbol(")"), bracedterm(HS, Pr).
-proofterm(HS, generalize(Pr)) --> symbol("generalize"), proofterm(HS, Pr).
-proofterm(HS, example(X, Pr)) --> symbol("example"), symbol("("), term0(X), symbol(")"), proofterm(HS, Pr).
+proofterm(HS, generalize(Pr)) --> symbol("generalize"), bracedterm(HS, Pr).
+proofterm(HS, example(X, Pr)) --> symbol("example"), symbol("("), term0(X), symbol(")"), bracedterm(HS, Pr).
 proofterm([], refl(X)) --> symbol("refl"), symbol("("), term0(X), symbol(")").
 
-proofterm(HS, proj_left(Pr)) --> symbol("proj_left"), proofterm(HS, Pr).
-proofterm(HS, proj_right(Pr)) --> symbol("proj_right"), proofterm(HS, Pr).
+proofterm(HS, proj_left(Pr)) --> symbol("proj_left"), bracedterm(HS, Pr).
+proofterm(HS, proj_right(Pr)) --> symbol("proj_right"), bracedterm(HS, Pr).
 proofterm(HS, case(PrOr, PrA, PrB)) --> symbol("case"), bracedterm(H1, PrOr), bracedterm(H2, PrA), bracedterm(H3, PrB),
                                         { append(H1, H2, H12), append(H12, H3, HS) }.
 proofterm(HS, mp(PrImp, PrP)) --> symbol("mp"), bracedterm(H1, PrImp), bracedterm(H2, PrP), { append(H1, H2, HS) }.
 proofterm(HS, contra(PrP, PrNP)) --> symbol("contra"), bracedterm(H1, PrP), bracedterm(H2, PrNP), { append(H1, H2, HS) }.
 proofterm(HS, specialize(Pr, X)) --> symbol("specialize"), symbol("("), term0(X), symbol(")"), bracedterm(HS, Pr).
-proofterm(HS, inspect(Pr)) --> symbol("inspect"), proofterm(HS, Pr).
+proofterm(HS, inspect(Pr)) --> symbol("inspect"), bracedterm(HS, Pr).
 proofterm(HS, induction(Pr0, PrS)) --> symbol("induction"), bracedterm(H1, Pr0), bracedterm(H2, PrS), { append(H1, H2, HS) }.
-proofterm(HS, sym(Pr)) --> symbol("sym"), proofterm(HS, Pr).
+proofterm(HS, sym(Pr)) --> symbol("sym"), bracedterm(HS, Pr).
 proofterm(HS, trans(Pr1, Pr2)) --> symbol("trans"), bracedterm(H1, Pr1), bracedterm(H2, Pr2), { append(H1, H2, HS) }.
 proofterm(HS, subst(PrEq, Pr)) --> symbol("subst"), bracedterm(H1, PrEq), bracedterm(H2, Pr), { append(H1, H2, HS) }.
 proofterm([], X) --> ident(X).
 proofterm([hole(A, G)], hole(A, G)) --> symbol("?").
 
-bracedterm(HS, X) --> symbol("{"), proofterm(HS, X), symbol("}").
+bracedterm(HS, X) --> symbol("{"), proofterm(HS, X), symbol("}"), !.
 
 functional(P, F, As) --> ident(F), symbol("("), arglist(P, As), symbol(")").
 functional(_, F, []) --> ident(F), symbol("("), symbol(")").
@@ -386,7 +386,8 @@ printhole(hole(A, G)) :-
     \+ printheader(GS),
     write("="),
     write("\n"),
-    maplist(printassumption, A).
+    maplist(printassumption, A),
+    write("\n").
 
 printheader(S) :-
     string_length(S, L),
@@ -396,7 +397,7 @@ printheader(S) :-
 
 printassumption(N:P) :-
     atom_string(N, NS),
-    format('~s ~16|: ~w\n\n', [NS, P]).
+    format('~s ~16|: ~w\n', [NS, P]).
 
 printresult([]) :-
     write("All proofs correct and complete.\n"), !.
