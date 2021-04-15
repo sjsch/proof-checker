@@ -4,6 +4,8 @@
 %% to prove interesting theorems in number theory (as well as be
 %% subject to Gödel's incompleteness theorems.)
 
+:- use_module(library(dcg/basics)).
+
 %% Propositions (in prolog syntax):
 %%
 %% P ::= true
@@ -271,13 +273,21 @@ peano(DS) :-
 
 %% Parser
 
-proof(N, P, Proof) -->
+directives([H | T]) --> directive(H), directives(T).
+directives([]) --> [].
+
+directive(axiom(N, P)) -->
+    symbol("axiom"),
+    ident(N),
+    symbol(":"),
+    prop0(P).
+directive(proof(N, P, Proof, Holes)) -->
     symbol("proof"),
     ident(N),
     symbol(":"),
     prop0(P),
     symbol("{"),
-    proofterm(Proof),
+    proofterm(Holes, Proof),
     symbol("}").
 
 term0(func(add, [X, Y])) --> term1(X), symbol("+"), term0(Y).
@@ -314,7 +324,31 @@ prop3(exists(X, P)) --> symbol("exists"), ident(X), symbol("."), prop0(P).
 prop3(equal(T, U)) --> term0(T), symbol("="), term0(U).
 prop3(rel(R, Ps)) --> functional(term0, R, Ps).
 
-proofterm(trivial) --> symbol("trivial").
+proofterm([], trivial) --> symbol("trivial").
+proofterm(HS, conj(Pr1, Pr2)) --> symbol("conj"), bracedterm(H1, Pr1), bracedterm(H2, Pr2), { append(H1, H2,HS) }.
+proofterm(HS, left(Pr)) --> symbol("left"), proofterm(HS, Pr).
+proofterm(HS, right(Pr)) --> symbol("right"), proofterm(HS, Pr).
+proofterm(HS, cond(X, Pr)) --> symbol("cond"), symbol("("), ident(X), symbol(")"), bracedterm(HS, Pr).
+proofterm(HS, generalize(Pr)) --> symbol("generalize"), proofterm(HS, Pr).
+proofterm(HS, example(X, Pr)) --> symbol("example"), symbol("("), term0(X), symbol(")"), proofterm(HS, Pr).
+proofterm([], refl(X)) --> symbol("refl"), symbol("("), term0(X), symbol(")").
+
+proofterm(HS, proj_left(Pr)) --> symbol("proj_left"), proofterm(HS, Pr).
+proofterm(HS, proj_right(Pr)) --> symbol("proj_right"), proofterm(HS, Pr).
+proofterm(HS, case(PrOr, PrA, PrB)) --> symbol("case"), bracedterm(H1, PrOr), bracedterm(H2, PrA), bracedterm(H3, PrB),
+                                        { append(H1, H2, H12), append(H12, H3, HS) }.
+proofterm(HS, mp(PrImp, PrP)) --> symbol("mp"), bracedterm(H1, PrImp), bracedterm(H2, PrP), { append(H1, H2, HS) }.
+proofterm(HS, contra(PrP, PrNP)) --> symbol("contra"), bracedterm(H1, PrP), bracedterm(H2, PrNP), { append(H1, H2, HS) }.
+proofterm(HS, specialize(Pr, X)) --> symbol("specialize"), symbol("("), term0(X), symbol(")"), bracedterm(HS, Pr).
+proofterm(HS, inspect(Pr)) --> symbol("inspect"), proofterm(HS, Pr).
+proofterm(HS, induction(Pr0, PrS)) --> symbol("induction"), bracedterm(H1, Pr0), bracedterm(H2, PrS), { append(H1, H2, HS) }.
+proofterm(HS, sym(Pr)) --> symbol("sym"), proofterm(HS, Pr).
+proofterm(HS, trans(Pr1, Pr2)) --> symbol("trans"), bracedterm(H1, Pr1), bracedterm(H2, Pr2), { append(H1, H2, HS) }.
+proofterm(HS, subst(PrEq, Pr)) --> symbol("subst"), bracedterm(H1, PrEq), bracedterm(H2, Pr), { append(H1, H2, HS) }.
+proofterm([], X) --> ident(X).
+proofterm([hole(A, G)], hole(A, G)) --> symbol("?").
+
+bracedterm(HS, X) --> symbol("{"), proofterm(HS, X), symbol("}").
 
 functional(P, F, As) --> ident(F), symbol("("), arglist(P, As), symbol(")").
 functional(_, F, []) --> ident(F), symbol("("), symbol(")").
@@ -328,3 +362,50 @@ alnumident([]) --> [].
 ident(X) --> [C], { code_type(C, csymf) }, alnumident(T), { atom_string(X, [C | T]) }, blanks.
 
 symbol(S) --> S, blanks.
+
+%% Checker
+
+checkdirectives(Hs, Hs, _, []).
+checkdirectives(Hs, Hs2, D, [axiom(N, P) | T]) :-
+    checkdirectives(Hs, Hs2, [N:P | D], T).
+checkdirectives(Hs, Hs3, D, [proof(N, P, Proof, Holes) | T]) :-
+    proves(D, [], Proof, P), !,
+    append(Hs, Holes, Hs2),
+    checkdirectives(Hs2, Hs3, [N:P | D], T).
+checkdirectives(_, _, _, [proof(N, _, _, _) | _]) :-
+    write("Failed on proof "),
+    write(N),
+    !,
+    false.
+
+printhole(hole(A, G)) :-
+    term_string(G, GS),
+    write(GS),
+    write("\n"),
+    \+ printheader(GS),
+    write("="),
+    write("\n"),
+    maplist(printassumption, A).
+
+printheader(S) :-
+    string_length(S, L),
+    between(2, L, _),
+    write("="),
+    false.
+
+printassumption(N:P) :-
+    atom_string(N, NS),
+    format('~s ~16|: ~w\n\n', [NS, P]).
+
+printresult([]) :-
+    write("All proofs correct and complete.\n"), !.
+printresult(Hs) :-
+    write("Some proofs are not yet complete:\n\n"),
+    maplist(printhole, Hs).
+
+:- initialization(main, main).
+
+main([Filename]) :-
+    phrase_from_file(directives(DS), Filename),
+    checkdirectives([], Hs, [], DS), !,
+    printresult(Hs).
